@@ -2,6 +2,7 @@
 # https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
 #
 # Binaries for programs and plugins
+# Binaries (Compiled code you don't need to save)
 *.exe
 *.exe~
 *.dll
@@ -30,3 +31,14 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+bin/
+
+# Dependency folders
+vendor/
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Docker specific (if any local data volumes are created)
+data/

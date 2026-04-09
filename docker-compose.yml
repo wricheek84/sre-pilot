@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  # The "Patient" app you just built
+  target-app:
+    image: target-app:v1
+    ports:
+      - "8080:8080"
+    networks:
+      - sre-network
+
+  # The "Nervous System" (Redpanda)
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    container_name: redpanda-1
+    # This command is the "Diet Mode" for your 5.92GB RAM
+    command: >
+      redpanda start
+      --overprovisioned
+      --smp 1
+      --memory 1G
+      --reserve-memory 0M
+      --node-id 0
+      --check=false
+    ports:
+      - "9092:9092"
+      - "8081:8081"
+    networks:
+      - sre-network
+
+networks:
+  sre-network:
+    driver: bridge
