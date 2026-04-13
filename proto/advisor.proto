@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package advisor;
+
+// This helps Go know where to put the generated files later
+option go_package = "./proto";
+
+// The "Brain" Service
+service SREAdvisor {
+    // The Orchestrator calls this to get a diagnosis
+    rpc GetDiagnosis (DiagnosisRequest) returns (DiagnosisResponse);
+}
+
+// What the Go Orchestrator sends to the C++ Engine
+message DiagnosisRequest {
+    string event_type = 1;
+    string service_name = 2;
+    string error_content = 3;
+    string estimated_impact = 4;
+}
+
+
+message DiagnosisResponse {
+    string diagnosis = 1;
+    float confidence_score = 2; // e.g., 0.95
+    string suggested_action = 3;
+}
