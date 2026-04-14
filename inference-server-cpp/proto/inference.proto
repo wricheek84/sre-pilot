@@ -2,15 +2,18 @@ syntax = "proto3";
 
 package inference;
 
+option go_package = "./proto";
+
 message InferenceRequest {
-  repeated int32 tokens = 1; 
+  
+  string log_line = 1;  
   string model_id = 2;
 }
 
 message InferenceResponse {
   repeated int32 output_tokens = 1;
   float confidence = 2;   
-  bool is_stale = 3;     
+  bool is_stale = 3;      
 }
 
 service InferenceEngine {
