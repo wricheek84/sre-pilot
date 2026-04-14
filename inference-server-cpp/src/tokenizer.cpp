@@ -9,7 +9,7 @@
 Tokenizer::Tokenizer(const std::string& vocab_path) {
     std::ifstream infile(vocab_path);
     if (!infile.is_open()) {
-        throw std::runtime_error(" Critical Error: Could not find vocab file at " + vocab_path);
+        throw std::runtime_error("Critical Error: Could not find vocab file at " + vocab_path);
     }
 
     vocab.reserve(31000);
@@ -30,9 +30,7 @@ Tokenizer::Tokenizer(const std::string& vocab_path) {
     }
 
     infile.close();
-
-    std::cout << "Loaded " << vocab.size()
-              << " tokens into the C++ Engine." << std::endl;
+    std::cout << "Loaded " << vocab.size() << " tokens into the C++ Engine." << std::endl;
 }
 
 std::vector<int32_t> Tokenizer::tokenize(const std::string& text, size_t max_length) {
@@ -50,21 +48,20 @@ std::vector<int32_t> Tokenizer::tokenize(const std::string& text, size_t max_len
         wordpiece_tokenize(word, ids);
     }
 
+    if (ids.size() >= max_length) {
+        ids.resize(max_length - 1);
+    }
+    
     ids.push_back(102);
 
-    if (ids.size() > max_length) {
-        ids.resize(max_length);
-    } else {
-        while (ids.size() < max_length) {
-            ids.push_back(0);
-        }
+    while (ids.size() < max_length) {
+        ids.push_back(0);
     }
 
     return ids;
 }
 
-void Tokenizer::wordpiece_tokenize(const std::string& word,
-                                   std::vector<int32_t>& output) {
+void Tokenizer::wordpiece_tokenize(const std::string& word, std::vector<int32_t>& output) {
     bool is_bad = false;
     size_t start = 0;
     std::vector<int32_t> subword_ids;

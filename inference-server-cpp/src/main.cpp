@@ -6,34 +6,42 @@
 #include <future> 
 #include <memory> 
 #include <grpcpp/grpcpp.h>
+#include "tokenizer.h"
 #include "inference.grpc.pb.h" 
 #include "crow.h"
 #include "simple_queue.hpp"
 #include "thread_pool.hpp"
 
-
-
-
 SimpleQueue<InferenceRequest> order_queue;
 
 class InferenceServiceImpl final : public inference::InferenceEngine::Service {
-    grpc::Status RunInference(grpc::ServerContext* context, const inference::InferenceRequest* request, inference::InferenceResponse* reply) override {
-        int tokens = request->tokens_size();
+private:
+    Tokenizer tokenizer;
 
+public:
+    InferenceServiceImpl(const std::string& vocab_path) : tokenizer(vocab_path) {}
+
+    grpc::Status RunInference(grpc::ServerContext* context, const inference::InferenceRequest* request, inference::InferenceResponse* reply) override {
         if (order_queue.get_queue_depth() > 500) {
             return grpc::Status(grpc::StatusCode::RESOURCE_EXHAUSTED, "Server is overloaded");
         }
 
-        std::cout << "Received request for model: " << request->model_id() << " with " << tokens << " tokens." << std::endl;
+        std::string log_data = request->log_line();
+        std::vector<int32_t> token_ids = tokenizer.tokenize(log_data);
 
-      
+        std::vector<int64_t> tokens_vec;
+        tokens_vec.reserve(token_ids.size());
+        for (int32_t id : token_ids) {
+            tokens_vec.push_back(static_cast<int64_t>(id));
+        }
+
+        std::vector<int64_t> masks_vec(tokens_vec.size(), 1);
+
+        std::cout << "Received request for model: " << request->model_id() << " | Tokens: " << tokens_vec.size() << std::endl;
+
         auto prom = std::make_shared<std::promise<InferenceResult>>();
         std::future<InferenceResult> fut = prom->get_future();
-        std::vector<int64_t> tokens_vec;
-        for (int i = 0; i < request->tokens_size(); i++) {
-            tokens_vec.push_back(static_cast<int64_t>(request->tokens(i)));
-        }
-        std::vector<int64_t> masks_vec(tokens_vec.size(), 1);
+
         order_queue.push({
             request->model_id(), 
             tokens_vec, 
@@ -42,26 +50,19 @@ class InferenceServiceImpl final : public inference::InferenceEngine::Service {
             prom 
         });
 
-        
-        
-
-
         try {
-        
             if (fut.wait_for(std::chrono::seconds(5)) == std::future_status::timeout) {
                 return grpc::Status(grpc::StatusCode::DEADLINE_EXCEEDED, "Inference took too long");
             }
 
-            InferenceResult result = fut.get(); // Grab the REAL result from the worker
-            
+            InferenceResult result = fut.get();
             
             reply->add_output_tokens(result.prediction); 
             reply->set_confidence(result.confidence);
             reply->set_is_stale(result.is_stale);
             
-            
         } catch (const std::exception& e) {
-            return grpc::Status(grpc::StatusCode::INTERNAL, "Worker thread failed to fulfill promise");
+            return grpc::Status(grpc::StatusCode::INTERNAL, "Worker thread failure");
         }
 
         return grpc::Status::OK;
@@ -121,14 +122,12 @@ int main() {
         });
         broadcaster.detach();
 
-        std::cout << "WebSocket telemetry active on ws://localhost:8080/ws" << std::endl;
         app.port(8080).multithreaded().run();
     });
     dashboard_thread.detach();
 
-    
     std::string server_address("0.0.0.0:50051");
-    InferenceServiceImpl service;
+    InferenceServiceImpl service("../data/vocab.txt");
     grpc::ServerBuilder builder;
     builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
     builder.RegisterService(&service);
