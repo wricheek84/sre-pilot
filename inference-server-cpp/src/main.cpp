@@ -57,8 +57,11 @@ public:
 
             InferenceResult result = fut.get();
             
-            reply->add_output_tokens(result.prediction); 
-            reply->set_confidence(result.confidence);
+            // --- NEW: LOOP THROUGH EMBEDDING ---
+            // Instead of one class, we send all 384 numbers back to Go
+            for (float val : result.embedding) {
+                reply->add_embedding(val);
+            }
             reply->set_is_stale(result.is_stale);
             
         } catch (const std::exception& e) {
@@ -73,8 +76,9 @@ int main() {
     unsigned int n = std::thread::hardware_concurrency();
     std::cout << "Starting " << n << " worker threads." << std::endl;
 
+    // --- NEW: UPDATED PATH TO THE EMBEDDER MODEL ---
     std::vector<std::pair<std::string, std::wstring>> models = {
-        {"classifier", L"C:\\Users\\wrich\\inference-server-cpp\\onnx\\model_quantized.onnx"}
+        {"embedder", L"C:\\Users\\wrich\\\\sre-pilot\\inference-server-cpp\\onnx\\embedder\\model_quantized.onnx"}
     };
 
     ThreadPool pool(n, order_queue, models);
@@ -109,8 +113,9 @@ int main() {
                 x["p50_latency"] = p.p50;
                 x["p99_latency"] = p.p99;
                 x["total_batches"] = pool.get_total_batches();
-                x["latest_prediction"] = pool.get_latest_prediction();
-                x["latest_confidence"] = (double)pool.get_latest_confidence();
+                
+                // Dashboard Telemetry: showing a sample of the vector
+                x["latest_vector_sample"] = (double)pool.get_latest_val();
 
                 std::string msg = x.dump();
                 
@@ -127,7 +132,10 @@ int main() {
     dashboard_thread.detach();
 
     std::string server_address("0.0.0.0:50051");
-    InferenceServiceImpl service("../data/vocab.txt");
+    
+    
+    InferenceServiceImpl service("C:\\Users\\wrich\\sre-pilot\\inference-server-cpp\\onnx\\embedder\\vocab.txt");
+    
     grpc::ServerBuilder builder;
     builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
     builder.RegisterService(&service);

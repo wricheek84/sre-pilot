@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0finference.proto\x12\tinference\"6\n\x10InferenceRequest\x12\x10\n\x08log_line\x18\x01 \x01(\t\x12\x10\n\x08model_id\x18\x02 \x01(\t\"P\n\x11InferenceResponse\x12\x15\n\routput_tokens\x18\x01 \x03(\x05\x12\x12\n\nconfidence\x18\x02 \x01(\x02\x12\x10\n\x08is_stale\x18\x03 \x01(\x08\x32\\\n\x0fInferenceEngine\x12I\n\x0cRunInference\x12\x1b.inference.InferenceRequest\x1a\x1c.inference.InferenceResponseB\tZ\x07./protob\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0finference.proto\x12\tinference\"6\n\x10InferenceRequest\x12\x10\n\x08log_line\x18\x01 \x01(\t\x12\x10\n\x08model_id\x18\x02 \x01(\t\"8\n\x11InferenceResponse\x12\x11\n\tembedding\x18\x01 \x03(\x02\x12\x10\n\x08is_stale\x18\x03 \x01(\x08\x32\\\n\x0fInferenceEngine\x12I\n\x0cRunInference\x12\x1b.inference.InferenceRequest\x1a\x1c.inference.InferenceResponseB\tZ\x07./protob\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -35,7 +35,7 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_INFERENCEREQUEST']._serialized_start=30
   _globals['_INFERENCEREQUEST']._serialized_end=84
   _globals['_INFERENCERESPONSE']._serialized_start=86
-  _globals['_INFERENCERESPONSE']._serialized_end=166
-  _globals['_INFERENCEENGINE']._serialized_start=168
-  _globals['_INFERENCEENGINE']._serialized_end=260
+  _globals['_INFERENCERESPONSE']._serialized_end=142
+  _globals['_INFERENCEENGINE']._serialized_start=144
+  _globals['_INFERENCEENGINE']._serialized_end=236
 # @@protoc_insertion_point(module_scope)

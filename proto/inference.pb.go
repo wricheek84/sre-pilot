@@ -23,7 +23,7 @@ const (
 
 type InferenceRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Tokens        []int32                `protobuf:"varint,1,rep,packed,name=tokens,proto3" json:"tokens,omitempty"`
+	LogLine       string                 `protobuf:"bytes,1,opt,name=log_line,json=logLine,proto3" json:"log_line,omitempty"`
 	ModelId       string                 `protobuf:"bytes,2,opt,name=model_id,json=modelId,proto3" json:"model_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -59,11 +59,11 @@ func (*InferenceRequest) Descriptor() ([]byte, []int) {
 	return file_inference_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *InferenceRequest) GetTokens() []int32 {
+func (x *InferenceRequest) GetLogLine() string {
 	if x != nil {
-		return x.Tokens
+		return x.LogLine
 	}
-	return nil
+	return ""
 }
 
 func (x *InferenceRequest) GetModelId() string {
@@ -75,8 +75,7 @@ func (x *InferenceRequest) GetModelId() string {
 
 type InferenceResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	OutputTokens  []int32                `protobuf:"varint,1,rep,packed,name=output_tokens,json=outputTokens,proto3" json:"output_tokens,omitempty"`
-	Confidence    float32                `protobuf:"fixed32,2,opt,name=confidence,proto3" json:"confidence,omitempty"`
+	Embedding     []float32              `protobuf:"fixed32,1,rep,packed,name=embedding,proto3" json:"embedding,omitempty"`
 	IsStale       bool                   `protobuf:"varint,3,opt,name=is_stale,json=isStale,proto3" json:"is_stale,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -112,18 +111,11 @@ func (*InferenceResponse) Descriptor() ([]byte, []int) {
 	return file_inference_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *InferenceResponse) GetOutputTokens() []int32 {
+func (x *InferenceResponse) GetEmbedding() []float32 {
 	if x != nil {
-		return x.OutputTokens
+		return x.Embedding
 	}
 	return nil
-}
-
-func (x *InferenceResponse) GetConfidence() float32 {
-	if x != nil {
-		return x.Confidence
-	}
-	return 0
 }
 
 func (x *InferenceResponse) GetIsStale() bool {
@@ -137,15 +129,12 @@ var File_inference_proto protoreflect.FileDescriptor
 
 const file_inference_proto_rawDesc = "" +
 	"\n" +
-	"\x0finference.proto\x12\tinference\"E\n" +
-	"\x10InferenceRequest\x12\x16\n" +
-	"\x06tokens\x18\x01 \x03(\x05R\x06tokens\x12\x19\n" +
-	"\bmodel_id\x18\x02 \x01(\tR\amodelId\"s\n" +
-	"\x11InferenceResponse\x12#\n" +
-	"\routput_tokens\x18\x01 \x03(\x05R\foutputTokens\x12\x1e\n" +
-	"\n" +
-	"confidence\x18\x02 \x01(\x02R\n" +
-	"confidence\x12\x19\n" +
+	"\x0finference.proto\x12\tinference\"H\n" +
+	"\x10InferenceRequest\x12\x19\n" +
+	"\blog_line\x18\x01 \x01(\tR\alogLine\x12\x19\n" +
+	"\bmodel_id\x18\x02 \x01(\tR\amodelId\"L\n" +
+	"\x11InferenceResponse\x12\x1c\n" +
+	"\tembedding\x18\x01 \x03(\x02R\tembedding\x12\x19\n" +
 	"\bis_stale\x18\x03 \x01(\bR\aisStale2\\\n" +
 	"\x0fInferenceEngine\x12I\n" +
 	"\fRunInference\x12\x1b.inference.InferenceRequest\x1a\x1c.inference.InferenceResponseB\tZ\a./protob\x06proto3"

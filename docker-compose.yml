@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # The "Patient" app you just built
+  # 1. The "Patient" app
   target-app:
     image: target-app:v1
     ports:
@@ -9,11 +9,10 @@ services:
     networks:
       - sre-network
 
-  # The "Nervous System" (Redpanda)
+  # 2. The "Nervous System" (Redpanda)
   redpanda:
     image: docker.redpanda.com/redpandadata/redpanda:latest
     container_name: redpanda-1
-    # This command is the "Diet Mode" for your 5.92GB RAM
     command: >
       redpanda start
       --overprovisioned
@@ -25,6 +24,33 @@ services:
     ports:
       - "9092:9092"
       - "8081:8081"
+    networks:
+      - sre-network
+
+  # 3. The "State Guard" (Redis for Idempotency)
+  redis:
+    image: redis:alpine
+    container_name: redis-state
+    ports:
+      - "6379:6379"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    networks:
+      - sre-network
+
+  # 4. The "Semantic Memory" (Qdrant for Deduplication)
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant-memory
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
     networks:
       - sre-network
 

@@ -11,8 +11,8 @@ message InferenceRequest {
 }
 
 message InferenceResponse {
-  repeated int32 output_tokens = 1;
-  float confidence = 2;   
+  repeated float embedding = 1;
+     
   bool is_stale = 3;      
 }
 
