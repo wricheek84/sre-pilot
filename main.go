@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
-	"crypto/sha256" 
-	"encoding/binary" 
+	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"log"
@@ -22,7 +22,6 @@ import (
 func main() {
 	ctx := context.Background()
 
-	// 1. Setup C++ Engine
 	conn, err := grpc.NewClient("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("Failed to connect to C++ Engine: %v", err)
@@ -30,7 +29,6 @@ func main() {
 	defer conn.Close()
 	inferenceClient := pb.NewInferenceEngineClient(conn)
 
-	// 2. Setup Redis (The Guard)
 	rdb := redis.NewClient(&redis.Options{
 		Addr: "localhost:6379",
 	})
@@ -38,7 +36,6 @@ func main() {
 		log.Fatalf("Failed to connect to Redis: %v", err)
 	}
 
-	// 3. Setup Qdrant (The Memory)
 	qClient, err := qdrant.NewClient(&qdrant.Config{
 		Host:   "localhost",
 		Port:   6334,
@@ -49,7 +46,6 @@ func main() {
 	}
 	defer qClient.Close()
 
-	// 3.5. Ensure Qdrant Collection exists (FIXED LOGIC)
 	collectionName := "incident_vectors"
 	collections, err := qClient.ListCollections(ctx)
 	if err != nil {
@@ -65,21 +61,18 @@ func main() {
 	}
 
 	if !exists {
-		fmt.Printf("Creating Qdrant collection: %s...\n", collectionName)
 		err = qClient.CreateCollection(ctx, &qdrant.CreateCollection{
 			CollectionName: collectionName,
 			VectorsConfig: qdrant.NewVectorsConfig(&qdrant.VectorParams{
-				Size:     384, // Must match C++ model output
+				Size:     384,
 				Distance: qdrant.Distance_Cosine,
 			}),
 		})
 		if err != nil {
 			log.Fatalf("Failed to create Qdrant collection: %v", err)
 		}
-		fmt.Println("Collection created successfully.")
 	}
 
-	// 4. Setup Kafka (The Nervous System)
 	kafkaClient, err := kgo.NewClient(
 		kgo.SeedBrokers("localhost:9092"),
 		kgo.ConsumeTopics("health-events"),
@@ -88,14 +81,21 @@ func main() {
 		log.Fatalf("Failed to connect to Redpanda: %v", err)
 	}
 	defer kafkaClient.Close()
+	logChan := make(chan string, 100)
+	for i := 0; i < 16; i++ {
+        go worker(ctx, logChan, inferenceClient, rdb, qClient)
+    }
 
-	fmt.Println(" Orchestrator online... Everything connected.")
+	fmt.Println("Orchestrator online... Everything connected.")
 
-	// 5. THE LOOP
 	for {
 		fetches := kafkaClient.PollFetches(ctx)
 		if fetches.IsClientClosed() {
 			break
+		}
+		if(fetches.Empty()){
+			time.Sleep(100 * time.Millisecond)
+			continue
 		}
 
 		iter := fetches.RecordIter()
@@ -103,11 +103,15 @@ func main() {
 			record := iter.Next()
 			logLine := string(record.Value)
 
+
 			fmt.Printf("\n[Stream] New Log Received: %s\n", logLine)
-			processWithAI(ctx, inferenceClient, rdb, qClient, logLine)
+			logChan <- logLine
+			fmt.Printf("[Manager] Log sent to worker pool: %s\n", logLine)
+			
 		}
 	}
 }
+
 
 func processWithAI(ctx context.Context, client pb.InferenceEngineClient, rdb *redis.Client, qClient *qdrant.Client, logLine string) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
@@ -123,29 +127,115 @@ func processWithAI(ctx context.Context, client pb.InferenceEngineClient, rdb *re
 		return
 	}
 
-	if len(resp.Embedding) >= 3 {
+	if len(resp.Embedding) >= 384 {
 		incidentID := generateIncidentHash(resp.Embedding)
-        fmt.Printf("Incident Identity: %s\n", incidentID)
-		sample := resp.Embedding[:3]
-		fmt.Printf("AI Fingerprint: [Len: %v] | Sample: %.4f, %.4f, %.4f...\n", len(resp.Embedding), sample[0], sample[1], sample[2])
+		qID := fmt.Sprintf("%s-%s-%s-%s-%s",
+			incidentID[0:8], incidentID[8:12], incidentID[12:16], incidentID[16:20], incidentID[20:32])
+
+		searchRes, err := qClient.Query(ctx, &qdrant.QueryPoints{
+			CollectionName: "incident_vectors",
+			Query:          qdrant.NewQuery(resp.Embedding...),
+			Limit:          ptrUint64(1),
+			WithPayload:    qdrant.NewWithPayload(true),
+		})
+
+		var similarity float32 = 0.0
+		if err == nil && len(searchRes) > 0 {
+			similarity = searchRes[0].Score
+		}
+
+		podID := "pod-unknown"
+		if len(logLine) > 10 {
+			podID = "pod-a1"
+		}
+
+		blastKey := fmt.Sprintf("blast:%s", incidentID)
+		rdb.SAdd(ctx, blastKey, podID)
+		rdb.Expire(ctx, blastKey, 10*time.Minute)
+
+		blastRadius, err := rdb.SCard(ctx, blastKey).Result()
+		if err != nil || blastRadius == 0 {
+			blastRadius = 1
+		}
+
+
+		clusterRPSStr, errC := rdb.Get(ctx, "metrics:cluster_rps").Result()
+		podRPSStr, errP := rdb.Get(ctx, "metrics:pod_rps:"+podID).Result()
+
+		var clusterRPS, podRPS float64
+		
+		
+
+		if errC != nil {
+			clusterRPS = 1000
+		}else{
+			fmt.Sscanf(clusterRPSStr, "%f", &clusterRPS)
+		}
+		if(errP !=nil){
+			podRPS = 100
+
+
+		}else{
+			fmt.Sscanf(podRPSStr, "%f", &podRPS)
+		}
+
+		capacityLoss := (podRPS / clusterRPS) * 100
+
+		historySuccess := 0.95
+		trustScore := (float64(similarity) * historySuccess) / float64(blastRadius)
+		if similarity == 0 {
+			trustScore = 1.0 / float64(blastRadius)
+		}
+
+		if similarity > 0.98 {
+			fmt.Printf("DUPLICATE | Trust: %.2f | Blast: %d | Loss: %.1f%%\n", trustScore, blastRadius, capacityLoss)
+			return
+		}
+
+		_, err = qClient.Upsert(ctx, &qdrant.UpsertPoints{
+			CollectionName: "incident_vectors",
+			Points: []*qdrant.PointStruct{
+				{
+					Id:      qdrant.NewID(qID),
+					Vectors: qdrant.NewVectors(resp.Embedding...),
+					Payload: qdrant.NewValueMap(map[string]any{
+						"log":           logLine,
+						"created_at":    time.Now().Format(time.RFC3339),
+						"capacity_loss": capacityLoss,
+						"trust_score":   trustScore,
+						"blast_radius":  blastRadius,
+					}),
+				},
+			},
+		})
+
+		if err != nil {
+			log.Printf("Qdrant Save Error: %v", err)
+		} else {
+			fmt.Printf("NEW EVENT | Loss: %.1f%% | Trust: %.2f | ID: %s\n", capacityLoss, trustScore, qID)
+		}
+
 	} else {
-		fmt.Printf("AI Fingerprint: Received unexpected empty vector\n")
+		fmt.Printf("AI Fingerprint: Received unexpected vector length\n")
 	}
 }
 
 func generateIncidentHash(embedding []float32) string {
-	
 	buf := make([]byte, len(embedding)*4)
-	
 	for i, f := range embedding {
-		
 		bits := math.Float32bits(f)
 		binary.LittleEndian.PutUint32(buf[i*4:], bits)
 	}
-
-
 	hash := sha256.Sum256(buf)
-
-
 	return hex.EncodeToString(hash[:])
+}
+
+func ptrUint64(u uint64) *uint64 {
+	return &u
+}
+func worker(ctx context.Context, logChan <-chan string, client pb.InferenceEngineClient, rdb *redis.Client, qClient *qdrant.Client) {
+    
+	for logLine := range logChan {
+		processWithAI(ctx, client, rdb, qClient, logLine)
+	}
 }
