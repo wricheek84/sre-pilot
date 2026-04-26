@@ -51,7 +51,7 @@ private:
     std::deque<double> latency_samples;
     std::mutex samples_mutex;
     Ort::Env env{ORT_LOGGING_LEVEL_FATAL, "InferenceServer"};
-    std::unordered_map<std::string, std::unique_ptr<Ort::Session>> sessions;
+    std::unordered_map<std::string, std::vector<std::unique_ptr<Ort::Session>>> session_pools;
     SimpleQueue<InferenceRequest>& queue;
     std::atomic<int> active_workers{0};
     std::atomic<int> total_processed{0};
@@ -118,7 +118,9 @@ private:
                 std::cout << "DEBUG: [WORKER " << id << "] Sending 3 tensors to ONNX..." << std::endl;
                 active_workers++;
                 auto start_infer = std::chrono::steady_clock::now();
-                auto output_tensors = sessions.at(requests[0].model_id)->Run(Ort::RunOptions{nullptr}, input_names, input_tensors, 3, output_names, 1);
+                size_t session_idx = static_cast<size_t>(id) % 4;
+                auto& session = session_pools.at(requests[0].model_id)[session_idx];
+                auto output_tensors = session->Run(Ort::RunOptions{nullptr}, input_names, input_tensors, 3, output_names, 1);
                 auto end_infer = std::chrono::steady_clock::now();
                 active_workers--;
 
@@ -185,8 +187,12 @@ public:
         
         for (const auto& item : models_to_load) {
             try {
-                std::cout << "[INIT] Loading embedding model '" << item.first << "'..." << std::endl;
-                sessions[item.first] = std::make_unique<Ort::Session>(env, item.second.c_str(), session_options);
+                std::cout << "[INIT] Loading embedding model '" << item.first << "'4 instances" << std::endl;
+                for(int i = 0; i < 4; i++) {
+                    session_pools[item.first].push_back(std::make_unique<Ort::Session>(env, item.second.c_str(), session_options));
+                }
+
+                
             } catch (const Ort::Exception& e) {
                 std::cerr << "[CRITICAL] Failed to load " << item.first << ": " << e.what() << std::endl;
                 exit(1);

@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # 1. The "Patient" app
+ 
   target-app:
     image: target-app:v1
     ports:
@@ -9,7 +9,7 @@ services:
     networks:
       - sre-network
 
-  # 2. The "Nervous System" (Redpanda)
+  
   redpanda:
     image: docker.redpanda.com/redpandadata/redpanda:latest
     container_name: redpanda-1
@@ -27,7 +27,7 @@ services:
     networks:
       - sre-network
 
-  # 3. The "State Guard" (Redis for Idempotency)
+  
   redis:
     image: redis:alpine
     container_name: redis-state
@@ -40,7 +40,7 @@ services:
     networks:
       - sre-network
 
-  # 4. The "Semantic Memory" (Qdrant for Deduplication)
+ 
   qdrant:
     image: qdrant/qdrant:latest
     container_name: qdrant-memory
