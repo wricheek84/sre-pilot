@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"log"
 
-	_ "modernc.org/sqlite" // The underscore means we import it silently so database/sql can use it
+	_ "modernc.org/sqlite" 
 )
 
 // IncidentTrace represents one row in our database
@@ -25,8 +25,18 @@ func InitTraceDB() *sql.DB {
 	if err != nil {
 		log.Fatalf("failed to open SQLite database: %v", err)
 	}
+	pragmas := `
+	PRAGMA journal_mode=WAL;
+	PRAGMA busy_timeout=5000;
+	PRAGMA synchronous=NORMAL;
+	`
 
-	
+	_, err = db.Exec(pragmas)
+	if err != nil {
+		log.Fatalf("Failed to set SQLite pragmas: %v", err)
+	}
+	db.SetMaxOpenConns(1)
+
 	createTableSQL := `
 	CREATE TABLE IF NOT EXISTS audit_logs (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,

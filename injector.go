@@ -3,43 +3,66 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"math/rand"
 	"time"
 
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 func main() {
-	client, err := kgo.NewClient(kgo.SeedBrokers("localhost:9092"))
+	
+	cl, err := kgo.NewClient(
+		kgo.SeedBrokers("localhost:9092"),
+	)
 	if err != nil {
-		log.Fatal(err)
+		panic(fmt.Sprintf("Failed to connect to Redpanda: %v", err))
 	}
-	defer client.Close()
+	defer cl.Close()
 
 	ctx := context.Background()
-	
-	
-	errors := []string{
-		"auth_service: invalid token checksum",
-		"db_node_1: connection pool exhausted",
-		"api_gateway: rate limit exceeded for user_id_99",
-	}
+	fmt.Println(" Log Injector Online. Pumping live traffic to Redpanda...")
 
-	fmt.Println("Chaos Injector Running... Flooding 'health-events' topic.")
+
+	pods := []string{"pod-1", "pod-2", "pod-3", "pod-99"}
 
 	for {
 		
-		for _, errStr := range errors {
-			for i := 0; i < 50; i++ {
-				
-				podID := fmt.Sprintf("pod-%d", i)
-				payload := fmt.Sprintf("TIME=%d LEVEL=ERROR MSG=%s SOURCE=%s", time.Now().Unix(), errStr, podID)
+		pod := pods[rand.Intn(len(pods))]
+		
+		
+		isError := rand.Float32() > 0.85 
 
-				record := &kgo.Record{Topic: "health-events", Value: []byte(payload)}
-				client.Produce(ctx, record, nil)
+		var logLine string
+		timestamp := time.Now().Unix()
+
+		if isError {
+			errors := []string{
+				"LEVEL=ERROR MSG=db_connection_fail_critical",
+				"LEVEL=FATAL MSG=OOM_Killed_memory_limit_exceeded",
+				"LEVEL=ERROR MSG=CPU_spike_detected_throttling",
+				"LEVEL=FATAL MSG=health_check_timeout_node_dead",
 			}
+			msg := errors[rand.Intn(len(errors))]
+			logLine = fmt.Sprintf("TIME=%d %s SOURCE=%s", timestamp, msg, pod)
+			fmt.Printf("🔥 INJECTED ERROR: %s\n", logLine)
+		} else {
+			normals := []string{
+				"LEVEL=INFO MSG=request_processed_200",
+				"LEVEL=INFO MSG=cache_hit_successful",
+				"LEVEL=DEBUG MSG=garbage_collection_run_ok",
+			}
+			msg := normals[rand.Intn(len(normals))]
+			logLine = fmt.Sprintf("TIME=%d %s SOURCE=%s", timestamp, msg, pod)
+			
 		}
-		fmt.Printf("Batch of 150 logs injected at %v\n", time.Now().Format("15:04:05"))
-		time.Sleep(1 * time.Second)
+
+		
+		record := &kgo.Record{Topic: "health-events", Value: []byte(logLine)}
+		if err := cl.ProduceSync(ctx, record).FirstErr(); err != nil {
+			fmt.Printf("Produce error: %v\n", err)
+		}
+
+		
+		time.Sleep(2 * time.Second)
 	}
 }
