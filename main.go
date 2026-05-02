@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/binary"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math"
@@ -149,9 +150,11 @@ func processWithAI(
 	traceDB *sql.DB,
 	logLine string,
 	embedding []float32,
+	inX, inY, inZ float32,
 	slackURL string,
 	investigator *Investigator,
-) []float32 {
+) ([]float32, float32, float32, float32) {
+	var x, y, z float32 = inX, inY, inZ
 
 	if embedding == nil {
 		ctxIn, cancel := context.WithTimeout(ctx, 2*time.Second)
@@ -164,25 +167,21 @@ func processWithAI(
 
 		if err != nil {
 			log.Printf("AI Engine Error: %v", err)
-			return nil
+			return nil, 0, 0, 0
 		}
 		embedding = resp.Embedding
+		x, y, z = resp.X, resp.Y, resp.Z
+		fmt.Printf("[Spatial] Log Mapped to: X:%.2f, Y:%.2f, Z:%.2f\n", x, y, z)
 	}
 
 	if len(embedding) < 384 {
-		return nil
+		return nil, 0, 0, 0
 	}
 
 	incidentID := generateIncidentHash(embedding)
 	qID := fmt.Sprintf("%s-%s-%s-%s-%s",
 		incidentID[0:8], incidentID[8:12], incidentID[12:16], incidentID[16:20], incidentID[20:32],
 	)
-	throttleKey := "throttle:" + incidentID
-	isNewAlert, _ := rdb.SetNX(ctx, throttleKey, "active", 5*time.Minute).Result()
-	if !isNewAlert {
-		fmt.Printf("Throttled Alert for %s (ID: %s)\n", logLine, incidentID)
-		return embedding
-	}
 
 	searchRes, err := qClient.Query(ctx, &qdrant.QueryPoints{
 		CollectionName: "incident_vectors",
@@ -221,22 +220,6 @@ func processWithAI(
 		trustScore = 1.0 / float64(blastRadius)
 	}
 
-	if strings.Contains(logLine, "LEVEL=ERROR") || strings.Contains(logLine, "LEVEL=FATAL") || (similarity >= 0.85 && similarity <= 0.98) {
-		fmt.Printf("ASYNC_TRIGGER | Dispatching agent for %s...\n", podID)
-		go func() {
-			trace := investigator.Run(incidentID, podID)
-			fmt.Printf("[SUCCESS] Agent finished for %s: %s\n", podID, trace.Conclusion)
-			RecordIncident(traceDB, logLine, trustScore, int(blastRadius), capacityLoss, "AGENT_FIXED")
-			SendSlackAlert(slackURL, logLine, trustScore, int(blastRadius), trace.Conclusion)
-		}()
-		return embedding
-	} else if similarity > 0.99 {
-		fmt.Printf("DUPLICATE | Trust: %.2f | Blast: %d | Loss: %.1f%%\n", trustScore, blastRadius, capacityLoss)
-		RecordIncident(traceDB, logLine, trustScore, int(blastRadius), capacityLoss, "CACHED_DUPLICATE")
-		go SendSlackAlert(slackURL, logLine, trustScore, int(blastRadius), "DUPLICATE_ALERT")
-		return embedding
-	}
-
 	_, err = qClient.Upsert(ctx, &qdrant.UpsertPoints{
 		CollectionName: "incident_vectors",
 		Points: []*qdrant.PointStruct{
@@ -249,18 +232,47 @@ func processWithAI(
 					"capacity_loss": capacityLoss,
 					"trust_score":   trustScore,
 					"blast_radius":  blastRadius,
+					"x":             x,
+					"y":             y,
+					"z":             z,
 				}),
 			},
 		},
 	})
 
 	if err == nil {
-		fmt.Printf("NEW EVENT | Loss: %.1f%% | Trust: %.2f | ID: %s\n", capacityLoss, trustScore, qID)
-		RecordIncident(traceDB, logLine, trustScore, int(blastRadius), capacityLoss, "AI_PROCESSED")
-		go SendSlackAlert(slackURL, logLine, trustScore, int(blastRadius), "NEW_INCIDENT_DETECTED")
+		fmt.Printf("UPSERTED | ID: %s\n", qID)
 	}
 
-	return embedding
+	throttleKey := "throttle:" + incidentID
+	isNewAlert, _ := rdb.SetNX(ctx, throttleKey, "active", 5*time.Minute).Result()
+	if !isNewAlert {
+		fmt.Printf("Throttled Alert for %s (ID: %s)\n", logLine, incidentID)
+		return embedding, x, y, z
+	}
+
+	if strings.Contains(logLine, "LEVEL=ERROR") || strings.Contains(logLine, "LEVEL=FATAL") || (similarity >= 0.85 && similarity <= 0.98) {
+		fmt.Printf("ASYNC_TRIGGER | Dispatching agent for %s...\n", podID)
+		go func() {
+			trace := investigator.Run(incidentID, podID)
+			stepsJSON, _ := json.Marshal(trace.Steps)
+			fmt.Printf("[SUCCESS] Agent finished for %s: %s\n", podID, trace.Conclusion)
+			RecordIncident(traceDB, incidentID,logLine, trustScore, int(blastRadius), capacityLoss, "AGENT_FIXED", string(stepsJSON),trace.MTTR_ms,0)
+			SendSlackAlert(slackURL, logLine, trustScore, int(blastRadius), trace.Conclusion)
+		}()
+		return embedding, x, y, z
+	} else if similarity > 0.99 {
+		fmt.Printf("DUPLICATE | Trust: %.2f | Blast: %d | Loss: %.1f%%\n", trustScore, blastRadius, capacityLoss)
+		RecordIncident(traceDB, incidentID, logLine, trustScore, int(blastRadius), capacityLoss, "CACHED_DUPLICATE", "[]", 0, 0)
+		go SendSlackAlert(slackURL, logLine, trustScore, int(blastRadius), "DUPLICATE_ALERT")
+		return embedding, x, y, z
+	}
+
+	fmt.Printf("NEW EVENT | Loss: %.1f%% | Trust: %.2f | ID: %s\n", capacityLoss, trustScore, qID)
+	RecordIncident(traceDB, incidentID, logLine, trustScore, int(blastRadius), capacityLoss, "AI_PROCESSED", "[]", 0, 0)
+	go SendSlackAlert(slackURL, logLine, trustScore, int(blastRadius), "NEW_INCIDENT_DETECTED")
+
+	return embedding, x, y, z
 }
 
 func worker(
@@ -275,15 +287,15 @@ func worker(
 	investigator *Investigator,
 ) {
 	for logLine := range logChan {
-		if cachedEmbedding, found := cache.GetEmbedding(logLine); found {
-			fmt.Printf("[CACHE HIT] Skipping AI Engine for: %s\n", logLine)
-			processWithAI(ctx, client, rdb, qClient, traceDB, logLine, cachedEmbedding, slackURL, investigator)
+		if cachedEmbedding, cx, cy, cz, found := cache.GetEmbedding(logLine); found {
+			fmt.Printf("[CACHE HIT] Using stored spatial data for: %s\n", logLine)
+			processWithAI(ctx, client, rdb, qClient, traceDB, logLine, cachedEmbedding, cx, cy, cz, slackURL, investigator)
 			continue
 		}
 
-		newEmbedding := processWithAI(ctx, client, rdb, qClient, traceDB, logLine, nil, slackURL, investigator)
+		newEmbedding, nx, ny, nz := processWithAI(ctx, client, rdb, qClient, traceDB, logLine, nil, 0, 0, 0, slackURL, investigator)
 		if newEmbedding != nil {
-			cache.Add(logLine, newEmbedding)
+			cache.Add(logLine, newEmbedding, nx, ny, nz)
 		}
 	}
 }

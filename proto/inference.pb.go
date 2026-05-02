@@ -77,6 +77,9 @@ type InferenceResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Embedding     []float32              `protobuf:"fixed32,1,rep,packed,name=embedding,proto3" json:"embedding,omitempty"`
 	IsStale       bool                   `protobuf:"varint,3,opt,name=is_stale,json=isStale,proto3" json:"is_stale,omitempty"`
+	X             float32                `protobuf:"fixed32,4,opt,name=x,proto3" json:"x,omitempty"`
+	Y             float32                `protobuf:"fixed32,5,opt,name=y,proto3" json:"y,omitempty"`
+	Z             float32                `protobuf:"fixed32,6,opt,name=z,proto3" json:"z,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -106,7 +109,7 @@ func (x *InferenceResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use InferenceResponse.ProtoReflect.Descriptor instead.
+
 func (*InferenceResponse) Descriptor() ([]byte, []int) {
 	return file_inference_proto_rawDescGZIP(), []int{1}
 }
@@ -125,6 +128,27 @@ func (x *InferenceResponse) GetIsStale() bool {
 	return false
 }
 
+func (x *InferenceResponse) GetX() float32 {
+	if x != nil {
+		return x.X
+	}
+	return 0
+}
+
+func (x *InferenceResponse) GetY() float32 {
+	if x != nil {
+		return x.Y
+	}
+	return 0
+}
+
+func (x *InferenceResponse) GetZ() float32 {
+	if x != nil {
+		return x.Z
+	}
+	return 0
+}
+
 var File_inference_proto protoreflect.FileDescriptor
 
 const file_inference_proto_rawDesc = "" +
@@ -132,10 +156,13 @@ const file_inference_proto_rawDesc = "" +
 	"\x0finference.proto\x12\tinference\"H\n" +
 	"\x10InferenceRequest\x12\x19\n" +
 	"\blog_line\x18\x01 \x01(\tR\alogLine\x12\x19\n" +
-	"\bmodel_id\x18\x02 \x01(\tR\amodelId\"L\n" +
+	"\bmodel_id\x18\x02 \x01(\tR\amodelId\"v\n" +
 	"\x11InferenceResponse\x12\x1c\n" +
 	"\tembedding\x18\x01 \x03(\x02R\tembedding\x12\x19\n" +
-	"\bis_stale\x18\x03 \x01(\bR\aisStale2\\\n" +
+	"\bis_stale\x18\x03 \x01(\bR\aisStale\x12\f\n" +
+	"\x01x\x18\x04 \x01(\x02R\x01x\x12\f\n" +
+	"\x01y\x18\x05 \x01(\x02R\x01y\x12\f\n" +
+	"\x01z\x18\x06 \x01(\x02R\x01z2\\\n" +
 	"\x0fInferenceEngine\x12I\n" +
 	"\fRunInference\x12\x1b.inference.InferenceRequest\x1a\x1c.inference.InferenceResponseB\tZ\a./protob\x06proto3"
 

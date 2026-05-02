@@ -5,7 +5,7 @@ package advisor;
 // This helps Go know where to put the generated files later
 option go_package = "./proto";
 
-// The "Brain" Service
+// The "Brain" ServiceS
 service SREAdvisor {
     // The Orchestrator calls this to get a diagnosis
     rpc GetDiagnosis (DiagnosisRequest) returns (DiagnosisResponse);

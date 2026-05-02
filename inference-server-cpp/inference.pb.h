@@ -223,6 +223,9 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED InferenceResponse final : public ::
   enum : int {
     kEmbeddingFieldNumber = 1,
     kIsStaleFieldNumber = 3,
+    kXFieldNumber = 4,
+    kYFieldNumber = 5,
+    kZFieldNumber = 6,
   };
   // repeated float embedding = 1;
   [[nodiscard]] int embedding_size()
@@ -253,11 +256,41 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED InferenceResponse final : public ::
   void _internal_set_is_stale(bool value);
 
   public:
+  // float x = 4;
+  void clear_x() ;
+  [[nodiscard]] float x() const;
+  void set_x(float value);
+
+  private:
+  float _internal_x() const;
+  void _internal_set_x(float value);
+
+  public:
+  // float y = 5;
+  void clear_y() ;
+  [[nodiscard]] float y() const;
+  void set_y(float value);
+
+  private:
+  float _internal_y() const;
+  void _internal_set_y(float value);
+
+  public:
+  // float z = 6;
+  void clear_z() ;
+  [[nodiscard]] float z() const;
+  void set_z(float value);
+
+  private:
+  float _internal_z() const;
+  void _internal_set_z(float value);
+
+  public:
   // @@protoc_insertion_point(class_scope:inference.InferenceResponse)
  private:
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<2, 2,
+  static const ::google::protobuf::internal::TcParseTable<3, 5,
                                    0, 0,
                                    2>
       _table_;
@@ -283,6 +316,9 @@ class  PROTOBUF_FUTURE_ADD_EARLY_WARN_UNUSED InferenceResponse final : public ::
     ::google::protobuf::internal::CachedSize _cached_size_;
     ::google::protobuf::RepeatedField<float> embedding_;
     bool is_stale_;
+    float x_;
+    float y_;
+    float z_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
   union { Impl_ _impl_; };
@@ -733,6 +769,81 @@ inline bool InferenceResponse::_internal_is_stale() const {
 inline void InferenceResponse::_internal_set_is_stale(bool value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.is_stale_ = value;
+}
+
+// float x = 4;
+inline void InferenceResponse::clear_x() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.x_ = 0;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000004U);
+}
+inline float InferenceResponse::x() const {
+  // @@protoc_insertion_point(field_get:inference.InferenceResponse.x)
+  return _internal_x();
+}
+inline void InferenceResponse::set_x(float value) {
+  _internal_set_x(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000004U);
+  // @@protoc_insertion_point(field_set:inference.InferenceResponse.x)
+}
+inline float InferenceResponse::_internal_x() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.x_;
+}
+inline void InferenceResponse::_internal_set_x(float value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.x_ = value;
+}
+
+// float y = 5;
+inline void InferenceResponse::clear_y() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.y_ = 0;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000008U);
+}
+inline float InferenceResponse::y() const {
+  // @@protoc_insertion_point(field_get:inference.InferenceResponse.y)
+  return _internal_y();
+}
+inline void InferenceResponse::set_y(float value) {
+  _internal_set_y(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000008U);
+  // @@protoc_insertion_point(field_set:inference.InferenceResponse.y)
+}
+inline float InferenceResponse::_internal_y() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.y_;
+}
+inline void InferenceResponse::_internal_set_y(float value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.y_ = value;
+}
+
+// float z = 6;
+inline void InferenceResponse::clear_z() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.z_ = 0;
+  ClearHasBit(_impl_._has_bits_[0],
+                  0x00000010U);
+}
+inline float InferenceResponse::z() const {
+  // @@protoc_insertion_point(field_get:inference.InferenceResponse.z)
+  return _internal_z();
+}
+inline void InferenceResponse::set_z(float value) {
+  _internal_set_z(value);
+  SetHasBit(_impl_._has_bits_[0], 0x00000010U);
+  // @@protoc_insertion_point(field_set:inference.InferenceResponse.z)
+}
+inline float InferenceResponse::_internal_z() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.z_;
+}
+inline void InferenceResponse::_internal_set_z(float value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.z_ = value;
 }
 
 #ifdef __GNUC__

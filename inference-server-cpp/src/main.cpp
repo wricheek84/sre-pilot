@@ -11,15 +11,39 @@
 #include "crow.h"
 #include "simple_queue.hpp"
 #include "thread_pool.hpp"
+struct LogProjector {
+    float mean[384];
+    float components[3][384];
 
+    
+    bool init(const std::string& path) {
+        std::ifstream f(path, std::ios::binary);
+        if (!f.is_open()) return false;
+        f.read((char*)mean, 384 * 4);
+        f.read((char*)components, 3 * 384 * 4);
+        return true;
+    }
+
+    
+    std::vector<float> project(const std::vector<float>& input) {
+        std::vector<float> coords(3, 0.0f);
+        for (int k = 0; k < 3; k++) {
+            for (int i = 0; i < 384; i++) {
+                coords[k] += (input[i] - mean[i]) * components[k][i];
+            }
+        }
+        return coords;
+    }
+};
 SimpleQueue<InferenceRequest> order_queue;
 
 class InferenceServiceImpl final : public inference::InferenceEngine::Service {
 private:
     Tokenizer tokenizer;
+    LogProjector& projector;
 
 public:
-    InferenceServiceImpl(const std::string& vocab_path) : tokenizer(vocab_path) {}
+    InferenceServiceImpl(const std::string& vocab_path, LogProjector& lp) : tokenizer(vocab_path), projector(lp) {}
 
     grpc::Status RunInference(grpc::ServerContext* context, const inference::InferenceRequest* request, inference::InferenceResponse* reply) override {
         if (order_queue.get_queue_depth() > 500) {
@@ -56,9 +80,12 @@ public:
             }
 
             InferenceResult result = fut.get();
+            auto coords = projector.project(result.embedding);
+            reply->set_x(coords[0]);
+            reply->set_y(coords[1]);
+            reply->set_z(coords[2]);
             
-            // --- NEW: LOOP THROUGH EMBEDDING ---
-            // Instead of one class, we send all 384 numbers back to Go
+           
             for (float val : result.embedding) {
                 reply->add_embedding(val);
             }
@@ -76,7 +103,7 @@ int main() {
     unsigned int n = std::thread::hardware_concurrency();
     std::cout << "Starting " << n << " worker threads." << std::endl;
 
-    // --- NEW: UPDATED PATH TO THE EMBEDDER MODEL ---
+    
     std::vector<std::pair<std::string, std::wstring>> models = {
         {"embedder", L"C:\\Users\\wrich\\\\sre-pilot\\inference-server-cpp\\onnx\\embedder\\model_quantized.onnx"}
     };
@@ -130,12 +157,14 @@ int main() {
         app.port(8080).multithreaded().run();
     });
     dashboard_thread.detach();
+    LogProjector projector;
+    if (!projector.init("C:\\Users\\wrich\\sre-pilot\\inference-server-cpp\\data\\projection.bin")) {
+        std::cerr << "CRITICAL: Could not load projection.bin! Check the path." << std::endl;
+        return 1;
+    }
 
     std::string server_address("0.0.0.0:50051");
-    
-    
-    InferenceServiceImpl service("C:\\Users\\wrich\\sre-pilot\\inference-server-cpp\\onnx\\embedder\\vocab.txt");
-    
+    InferenceServiceImpl service("C:\\Users\\wrich\\sre-pilot\\inference-server-cpp\\onnx\\embedder\\vocab.txt", projector);
     grpc::ServerBuilder builder;
     builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
     builder.RegisterService(&service);

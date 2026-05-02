@@ -13,7 +13,11 @@ message InferenceRequest {
 message InferenceResponse {
   repeated float embedding = 1;
      
-  bool is_stale = 3;      
+  bool is_stale = 3; 
+
+  float x = 4;
+  float y = 5;
+  float z = 6;     
 }
 
 service InferenceEngine {

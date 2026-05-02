@@ -21,9 +21,10 @@ type ReActTrace struct {
 	PodID      string
 	Steps      []ReActStep
 	Conclusion string
+	MTTR_ms    int
 }
 
-// Updated interface to support both "Read" and "Action" tools
+
 type SRETool interface {
 	Name() string
 	Execute(target string, cmd string) (string, error)
@@ -107,40 +108,83 @@ func NewInvestigator(rdb *redis.Client) *Investigator {
 }
 
 func (i *Investigator) Run(incidentID, podID string) ReActTrace {
+	startTime := time.Now()
 	trace := ReActTrace{IncidentID: incidentID, PodID: podID, Steps: []ReActStep{}}
 
 	// 1. Health
 	health, _ := i.Toolbox["health"].Execute(podID, "")
+	trace.Steps = append(trace.Steps, ReActStep{
+		StepType:  "OBSERVATION",
+		Content:   "Health Check result: " + health,
+		Timestamp: time.Now(),
+	})
 	if health != "HEALTHY" {
+		trace.Steps = append(trace.Steps, ReActStep{
+			StepType:  "ACTION",
+			Content:   "Pod unhealthy. Executing REDEPLOY on " + podID,
+			Timestamp: time.Now(),
+
+		})
 		outcome, _ := i.Toolbox["remediate"].Execute(podID, "REDEPLOY")
 		trace.Conclusion = "FIXED: Pod was " + health + ". " + outcome
 		return trace
+		
 	}
 
 	// 2. Logs
 	logs, _ := i.Toolbox["logs"].Execute(podID, "")
+	trace.Steps = append(trace.Steps, ReActStep{
+		StepType:  "OBSERVATION",
+		Content:   "Log analysis result: " + logs,
+		Timestamp: time.Now(),
+	})
 	if logs != "CLEAN" {
+		var action string
 		if strings.Contains(logs, "OOM") {
-			outcome, _ := i.Toolbox["remediate"].Execute(podID, "UPSCALE_MEM")
-			trace.Conclusion = "FIXED: OOM detected. " + outcome
+			action = "UPSCALE_MEM"
 		} else if strings.Contains(logs, "DB_TIMEOUT") {
-			outcome, _ := i.Toolbox["remediate"].Execute(podID, "OPEN_CIRCUIT_BREAKER")
-			trace.Conclusion = "FIXED: DB Timeout. " + outcome
-		} else {
+			action = "OPEN_CIRCUIT_BREAKER"
+		}
+		if action != ""{
+			trace.Steps = append(trace.Steps, ReActStep{
+				StepType:  "ACTION",
+				Content:   "Detected specific fault. Executing " + action,
+				Timestamp: time.Now(),
+			})
+			outcome, _ := i.Toolbox["remediate"].Execute(podID, action)
+			trace.Conclusion = "FIXED: " + logs + ". " + outcome
+
+		}else{
 			trace.Conclusion = "ANALYZED: Logs show: " + logs
 		}
+		trace.MTTR_ms = int(time.Since(startTime).Milliseconds())
 		return trace
+
+		
 	}
 
 	// 3. CPU
 	cpuStr, _ := i.Toolbox["cpu"].Execute(podID, "")
 	cpuVal, _ := strconv.Atoi(cpuStr)
+	trace.Steps = append(trace.Steps, ReActStep{
+		StepType:  "OBSERVATION",
+		Content:   fmt.Sprintf("CPU Monitor: %d%% utilization", cpuVal),
+		Timestamp: time.Now(),
+	})
+
 	if cpuVal > 90 {
+		trace.Steps = append(trace.Steps, ReActStep{
+			StepType:  "ACTION",
+			Content:   "CPU threshold exceeded. Executing RESTART_CPU",
+			Timestamp: time.Now(),
+		})
 		outcome, _ := i.Toolbox["remediate"].Execute(podID, "RESTART_CPU")
 		trace.Conclusion = fmt.Sprintf("FIXED: High CPU (%d). %s", cpuVal, outcome)
+		
 	} else {
-		trace.Conclusion = fmt.Sprintf("HEALTHY: All metrics normal (CPU: %d%%).", cpuVal)
+		trace.Conclusion = fmt.Sprintf("ANALYZED: CPU at %d%%, within normal limits.", cpuVal)
 	}
+	trace.MTTR_ms = int(time.Since(startTime).Milliseconds())
 
 	return trace
 }
