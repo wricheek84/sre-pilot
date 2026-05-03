@@ -38,6 +38,7 @@ func main() {
 
 	traceDB := InitTraceDB()
 	defer traceDB.Close()
+	go StartAPI(traceDB)
 
 	conn, err := grpc.Dial("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
