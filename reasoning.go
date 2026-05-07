@@ -24,7 +24,6 @@ type ReActTrace struct {
 	MTTR_ms    int
 }
 
-
 type SRETool interface {
 	Name() string
 	Execute(target string, cmd string) (string, error)
@@ -33,42 +32,52 @@ type SRETool interface {
 type HealthCheckTool struct {
 	RDB *redis.Client
 }
+
 func (t *HealthCheckTool) Name() string { return "HealthCheck" }
 func (t *HealthCheckTool) Execute(podID string, _ string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 	status, err := t.RDB.Get(ctx, "sim:health:"+podID).Result()
-	if err == redis.Nil { return "HEALTHY", nil }
+	if err == redis.Nil {
+		return "HEALTHY", nil
+	}
 	return status, err
 }
 
 type LogScannerTool struct {
 	RDB *redis.Client
 }
+
 func (t *LogScannerTool) Name() string { return "LogScanner" }
 func (t *LogScannerTool) Execute(podID string, _ string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 	logs, err := t.RDB.Get(ctx, "sim:logs:"+podID).Result()
-	if err == redis.Nil { return "CLEAN", nil }
+	if err == redis.Nil {
+		return "CLEAN", nil
+	}
 	return logs, err
 }
 
 type ResourceTool struct {
 	RDB *redis.Client
 }
+
 func (t *ResourceTool) Name() string { return "ResourceMonitor" }
 func (t *ResourceTool) Execute(podID string, _ string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 	cpu, err := t.RDB.Get(ctx, "sim:cpu:"+podID).Result()
-	if err == redis.Nil { return "20", nil }
+	if err == redis.Nil {
+		return "20", nil
+	}
 	return cpu, err
 }
 
 type RemediationTool struct {
 	RDB *redis.Client
 }
+
 func (t *RemediationTool) Name() string { return "Remediator" }
 func (t *RemediationTool) Execute(podID string, action string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
@@ -111,7 +120,6 @@ func (i *Investigator) Run(incidentID, podID string) ReActTrace {
 	startTime := time.Now()
 	trace := ReActTrace{IncidentID: incidentID, PodID: podID, Steps: []ReActStep{}}
 
-	// 1. Health
 	health, _ := i.Toolbox["health"].Execute(podID, "")
 	trace.Steps = append(trace.Steps, ReActStep{
 		StepType:  "OBSERVATION",
@@ -123,12 +131,12 @@ func (i *Investigator) Run(incidentID, podID string) ReActTrace {
 			StepType:  "ACTION",
 			Content:   "Pod unhealthy. Executing REDEPLOY on " + podID,
 			Timestamp: time.Now(),
-
 		})
 		outcome, _ := i.Toolbox["remediate"].Execute(podID, "REDEPLOY")
 		trace.Conclusion = "FIXED: Pod was " + health + ". " + outcome
+		trace.MTTR_ms = int(time.Since(startTime).Milliseconds())
 		return trace
-		
+
 	}
 
 	// 2. Logs
@@ -145,7 +153,7 @@ func (i *Investigator) Run(incidentID, podID string) ReActTrace {
 		} else if strings.Contains(logs, "DB_TIMEOUT") {
 			action = "OPEN_CIRCUIT_BREAKER"
 		}
-		if action != ""{
+		if action != "" {
 			trace.Steps = append(trace.Steps, ReActStep{
 				StepType:  "ACTION",
 				Content:   "Detected specific fault. Executing " + action,
@@ -154,13 +162,13 @@ func (i *Investigator) Run(incidentID, podID string) ReActTrace {
 			outcome, _ := i.Toolbox["remediate"].Execute(podID, action)
 			trace.Conclusion = "FIXED: " + logs + ". " + outcome
 
-		}else{
+		} else {
 			trace.Conclusion = "ANALYZED: Logs show: " + logs
 		}
 		trace.MTTR_ms = int(time.Since(startTime).Milliseconds())
+
 		return trace
 
-		
 	}
 
 	// 3. CPU
@@ -180,7 +188,7 @@ func (i *Investigator) Run(incidentID, podID string) ReActTrace {
 		})
 		outcome, _ := i.Toolbox["remediate"].Execute(podID, "RESTART_CPU")
 		trace.Conclusion = fmt.Sprintf("FIXED: High CPU (%d). %s", cpuVal, outcome)
-		
+
 	} else {
 		trace.Conclusion = fmt.Sprintf("ANALYZED: CPU at %d%%, within normal limits.", cpuVal)
 	}

@@ -38,7 +38,7 @@ func main() {
 
 	traceDB := InitTraceDB()
 	defer traceDB.Close()
-	go StartAPI(traceDB)
+	
 
 	conn, err := grpc.Dial("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -67,6 +67,7 @@ func main() {
 		log.Fatalf("Failed to connect to Qdrant: %v", err)
 	}
 	defer qClient.Close()
+	go StartAPI(traceDB, qClient)
 
 	collectionName := "incident_vectors"
 	collections, err := qClient.ListCollections(ctx)
@@ -197,7 +198,7 @@ func processWithAI(
 	}
 
 	podID := ExtractPodID(logLine)
-	blastKey := fmt.Sprintf("blast:%s", incidentID)
+	blastKey := fmt.Sprintf("blast:%s", qID)
 	rdb.SAdd(ctx, blastKey, podID)
 	rdb.Expire(ctx, blastKey, 10*time.Minute)
 
@@ -220,6 +221,22 @@ func processWithAI(
 	if similarity == 0 {
 		trustScore = 1.0 / float64(blastRadius)
 	}
+	level := ""
+
+    if strings.Contains(logLine, "LEVEL=FATAL") {
+	    level = "FATAL"
+    } else if strings.Contains(logLine, "LEVEL=ERROR") {
+	    level = "ERROR"
+    } else if strings.Contains(logLine, "LEVEL=WARN") {
+	    level = "WARN"
+    } else if strings.Contains(logLine, "LEVEL=INFO") {
+	    level = "INFO"
+    } else if strings.Contains(logLine, "LEVEL=DEBUG") {
+	    level = "DEBUG"
+    } else {
+	    level = "UNKNOWN"
+	}
+
 
 	_, err = qClient.Upsert(ctx, &qdrant.UpsertPoints{
 		CollectionName: "incident_vectors",
@@ -229,6 +246,7 @@ func processWithAI(
 				Vectors: qdrant.NewVectors(embedding...),
 				Payload: qdrant.NewValueMap(map[string]any{
 					"log":           logLine,
+					"level":         level,
 					"created_at":    time.Now().Format(time.RFC3339),
 					"capacity_loss": capacityLoss,
 					"trust_score":   trustScore,
@@ -236,6 +254,7 @@ func processWithAI(
 					"x":             x,
 					"y":             y,
 					"z":             z,
+
 				}),
 			},
 		},
@@ -245,32 +264,37 @@ func processWithAI(
 		fmt.Printf("UPSERTED | ID: %s\n", qID)
 	}
 
-	throttleKey := "throttle:" + incidentID
+	throttleKey := "throttle:" + qID
 	isNewAlert, _ := rdb.SetNX(ctx, throttleKey, "active", 5*time.Minute).Result()
 	if !isNewAlert {
-		fmt.Printf("Throttled Alert for %s (ID: %s)\n", logLine, incidentID)
+		fmt.Printf("Throttled Alert for %s (ID: %s)\n", logLine, qID)
 		return embedding, x, y, z
 	}
 
 	if strings.Contains(logLine, "LEVEL=ERROR") || strings.Contains(logLine, "LEVEL=FATAL") || (similarity >= 0.85 && similarity <= 0.98) {
 		fmt.Printf("ASYNC_TRIGGER | Dispatching agent for %s...\n", podID)
 		go func() {
-			trace := investigator.Run(incidentID, podID)
+			trace := investigator.Run(qID, podID)
 			stepsJSON, _ := json.Marshal(trace.Steps)
 			fmt.Printf("[SUCCESS] Agent finished for %s: %s\n", podID, trace.Conclusion)
-			RecordIncident(traceDB, incidentID,logLine, trustScore, int(blastRadius), capacityLoss, "AGENT_FIXED", string(stepsJSON),trace.MTTR_ms,0)
+			finalStatus := "AI_ANALYZED"
+			if strings.Contains(strings.ToUpper(trace.Conclusion), "FIXED") {
+
+				finalStatus = "AGENT_FIXED"
+			}
+			RecordIncident(traceDB, qID, logLine, trustScore, int(blastRadius), capacityLoss, finalStatus, string(stepsJSON), trace.MTTR_ms, 0)
 			SendSlackAlert(slackURL, logLine, trustScore, int(blastRadius), trace.Conclusion)
 		}()
 		return embedding, x, y, z
 	} else if similarity > 0.99 {
 		fmt.Printf("DUPLICATE | Trust: %.2f | Blast: %d | Loss: %.1f%%\n", trustScore, blastRadius, capacityLoss)
-		RecordIncident(traceDB, incidentID, logLine, trustScore, int(blastRadius), capacityLoss, "CACHED_DUPLICATE", "[]", 0, 0)
+		RecordIncident(traceDB, qID, logLine, trustScore, int(blastRadius), capacityLoss, "CACHED_DUPLICATE", "[]", 0, 0)
 		go SendSlackAlert(slackURL, logLine, trustScore, int(blastRadius), "DUPLICATE_ALERT")
 		return embedding, x, y, z
 	}
 
 	fmt.Printf("NEW EVENT | Loss: %.1f%% | Trust: %.2f | ID: %s\n", capacityLoss, trustScore, qID)
-	RecordIncident(traceDB, incidentID, logLine, trustScore, int(blastRadius), capacityLoss, "AI_PROCESSED", "[]", 0, 0)
+	RecordIncident(traceDB, qID, logLine, trustScore, int(blastRadius), capacityLoss, "AI_PROCESSED", "[]", 0, 0)
 	go SendSlackAlert(slackURL, logLine, trustScore, int(blastRadius), "NEW_INCIDENT_DETECTED")
 
 	return embedding, x, y, z
