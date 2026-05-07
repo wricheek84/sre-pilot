@@ -80,9 +80,9 @@ func main() {
 					Payload: qdrant.NewValueMap(map[string]any{
 						"log":   logLine,
 						"level": level,
-						"x":     float64(resp.Embedding[0]),
-						"y":     float64(resp.Embedding[1]),
-						"z":     float64(resp.Embedding[2]),
+						"x":     float64(resp.X),
+						"y":     float64(resp.Y),
+						"z":     float64(resp.Z),
 					}),
 				},
 			},

@@ -121,12 +121,18 @@ func (i *Investigator) Run(incidentID, podID string) ReActTrace {
 	trace := ReActTrace{IncidentID: incidentID, PodID: podID, Steps: []ReActStep{}}
 
 	health, _ := i.Toolbox["health"].Execute(podID, "")
+
 	trace.Steps = append(trace.Steps, ReActStep{
 		StepType:  "OBSERVATION",
 		Content:   "Health Check result: " + health,
 		Timestamp: time.Now(),
 	})
 	if health != "HEALTHY" {
+		trace.Steps = append(trace.Steps, ReActStep{
+			StepType:  "THOUGHT",
+			Content:   fmt.Sprintf("Pod %s reported status %s. A non-healthy status requires an immediate fresh start to clear potential deadlocks or corrupted state.", podID, health),
+			Timestamp: time.Now(),
+		})
 		trace.Steps = append(trace.Steps, ReActStep{
 			StepType:  "ACTION",
 			Content:   "Pod unhealthy. Executing REDEPLOY on " + podID,
@@ -155,6 +161,11 @@ func (i *Investigator) Run(incidentID, podID string) ReActTrace {
 		}
 		if action != "" {
 			trace.Steps = append(trace.Steps, ReActStep{
+				StepType:  "THOUGHT",
+				Content:   "Logs indicate a specific fault (" + logs + "). This suggests a targeted remediation rather than a full redeploy.",
+				Timestamp: time.Now(),
+			})
+			trace.Steps = append(trace.Steps, ReActStep{
 				StepType:  "ACTION",
 				Content:   "Detected specific fault. Executing " + action,
 				Timestamp: time.Now(),
@@ -181,6 +192,11 @@ func (i *Investigator) Run(incidentID, podID string) ReActTrace {
 	})
 
 	if cpuVal > 90 {
+		trace.Steps = append(trace.Steps, ReActStep{
+			StepType:  "THOUGHT",
+			Content:   fmt.Sprintf("CPU is at %d%%, exceeding the 90%% safety threshold.need to restart the process to clear dead threads or runaway tasks.", cpuVal),
+			Timestamp: time.Now(),
+		})
 		trace.Steps = append(trace.Steps, ReActStep{
 			StepType:  "ACTION",
 			Content:   "CPU threshold exceeded. Executing RESTART_CPU",

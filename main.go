@@ -222,19 +222,20 @@ func processWithAI(
 		trustScore = 1.0 / float64(blastRadius)
 	}
 	level := ""
+	upperLog := strings.ToUpper(logLine)
 
-    if strings.Contains(logLine, "LEVEL=FATAL") {
+    if strings.Contains(upperLog, "FATAL") {		
 	    level = "FATAL"
-    } else if strings.Contains(logLine, "LEVEL=ERROR") {
+    } else if strings.Contains(upperLog, "ERROR") {
 	    level = "ERROR"
-    } else if strings.Contains(logLine, "LEVEL=WARN") {
+    } else if strings.Contains(upperLog, "WARN") {
 	    level = "WARN"
-    } else if strings.Contains(logLine, "LEVEL=INFO") {
+    } else if strings.Contains(upperLog, "INFO") {
 	    level = "INFO"
-    } else if strings.Contains(logLine, "LEVEL=DEBUG") {
+    } else if strings.Contains(upperLog, "DEBUG") {
 	    level = "DEBUG"
     } else {
-	    level = "UNKNOWN"
+	    level = "INFO"
 	}
 
 

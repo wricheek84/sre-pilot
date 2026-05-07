@@ -3,10 +3,10 @@ import { OrbitControls, PerspectiveCamera, Points, PointMaterial } from '@react-
 import * as THREE from 'three';
 
 const palette = {
-  fatal: new THREE.Color('#DC2626'),
-  warn: new THREE.Color('#16A34A'),
-  info: new THREE.Color('#7C3AED'),
-  default: new THREE.Color('#94A3B8')
+  fatal: new THREE.Color('#8b0000'),
+  warn: new THREE.Color('#00ff00'),
+  info: new THREE.Color('#0000ff'),
+  default: new THREE.Color('#ffd700')
 };
 
 // Stable jitter to keep selection rings centered
@@ -80,7 +80,7 @@ export function Galaxy({ points, selectedId }) {
 
   return (
     <>
-      <PerspectiveCamera makeDefault position={[0, 10, 30]} fov={50} />
+      <PerspectiveCamera makeDefault position={[0, 10, 30]} fov={50} near={0.01} />
       
       <OrbitControls 
         ref={controlsRef}
@@ -92,14 +92,14 @@ export function Galaxy({ points, selectedId }) {
 
       <gridHelper args={[40, 80, '#06b6d4', '#022c22']} position={[0, -1, 0]} />
 
-      <Points positions={positions} colors={colors} stride={3}>
+      <Points positions={positions} colors={colors} stride={3} frustumCulled={false}>
         <PointMaterial
           transparent
           vertexColors
-          size={0.25}
+          size={0.18}
           sizeAttenuation
           depthWrite={false}
-          blending={THREE.NormalBlending}
+          blending={THREE.AdditiveBlending}
           alphaTest={0.5}
         />
       </Points>
