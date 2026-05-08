@@ -113,7 +113,7 @@ func main() {
 		go worker(ctx, logChan, inferenceClient, rdb, qClient, traceDB, cache, slackURL, investigator)
 	}
 
-	fmt.Println("Orchestrator online... Everything connected.")
+	fmt.Println("Alert system is running and consuming logs")
 
 	for {
 		fetches := kafkaClient.PollFetches(ctx)

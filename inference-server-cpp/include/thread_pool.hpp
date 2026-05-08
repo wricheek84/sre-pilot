@@ -153,7 +153,7 @@ private:
                         final_embedding[d] /= static_cast<float>(sequence_length);
                     }
 
-                    // For dashboard telemetry: store the first dimension as a "sample"
+                
                     latest_val.store(final_embedding[0], std::memory_order_relaxed);
 
                     size_t original_index = valid_indices[b];

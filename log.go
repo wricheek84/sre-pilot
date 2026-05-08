@@ -18,7 +18,7 @@ type ScrollResponse struct {
 }
 
 func main() {
-	// 1. Request the data via the REST API (Port 6333)
+	
 	url := "http://localhost:6333/collections/incident_vectors/points/scroll"
 	query := []byte(`{"limit": 2000, "with_vector": true}`)
 	
@@ -29,14 +29,12 @@ func main() {
 	}
 	defer resp.Body.Close()
 
-	// 2. Parse the JSON
 	var data ScrollResponse
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
 		fmt.Printf("JSON Error: %v\n", err)
 		return
 	}
 
-	// 3. Write to binary file
 	f, _ := os.Create("logs.bin")
 	defer f.Close()
 

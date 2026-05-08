@@ -8,7 +8,7 @@ import (
 	_ "modernc.org/sqlite" 
 )
 
-// IncidentTrace represents one row in our database
+
 type IncidentTrace struct {
 	ID           int
 	IncidentID   string

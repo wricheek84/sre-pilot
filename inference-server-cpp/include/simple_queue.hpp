@@ -19,7 +19,7 @@ public:
         std::lock_guard<std::mutex> lock(mutex_);
         queue_.push(item);
         current_queue_depth++;
-        // Use notify_all so all workers can check if the batch threshold is met
+        
         cond_.notify_all();
     }
 

@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	// Seed randomness so every run is different
+	
 	rand.Seed(time.Now().UnixNano())
 
 	cl, err := kgo.NewClient(
@@ -31,12 +31,11 @@ func main() {
 		timestamp := time.Now().Unix()
 		var logLine string
 
-		// Probability Distribution:
-		// 15% Critical (Red), 25% Warning (Green), 60% Normal (Blue)
+		
 		chance := rand.Float32()
 
 		if chance > 0.85 {
-			// CRITICAL (Red in Galaxy)
+			
 			errors := []string{
 				"LEVEL=FATAL MSG=SSL_CERT_EXPIRED",
 				"LEVEL=ERROR MSG=connection_pool_exhausted",
@@ -48,7 +47,7 @@ func main() {
 			fmt.Printf(">>> [RED] INJECTED CRITICAL: %s\n", logLine)
 
 		} else if chance > 0.60 {
-			// WARNING (Green in Galaxy)
+			
 			warnings := []string{
 				"LEVEL=WARN MSG=high_p99_latency_detected",
 				"LEVEL=WARN MSG=disk_usage_reaching_85_percent",
@@ -58,10 +57,10 @@ func main() {
 			}
 			msg := warnings[rand.Intn(len(warnings))]
 			logLine = fmt.Sprintf("TIME=%d %s SOURCE=%s", timestamp, msg, pod)
-			fmt.Printf(">>> [GREEN] INJECTED WARNING: %s\n", logLine)
+			fmt.Printf(">>> [white] INJECTED WARNING: %s\n", logLine)
 
 		} else {
-			// NORMAL (Blue in Galaxy)
+			
 			normals := []string{
 				"LEVEL=INFO MSG=request_processed_200",
 				"LEVEL=INFO MSG=cache_hit",
@@ -77,7 +76,7 @@ func main() {
 			fmt.Printf("Produce error: %v\n", err)
 		}
 
-		// Faster heartbeat (800ms) to see the Galaxy fill up quickly
+		
 		time.Sleep(800 * time.Millisecond)
 	}
 }
